@@ -1,4 +1,4 @@
-package chain_debugger
+package chaintoolkit
 
 import (
 	"fmt"
@@ -8,7 +8,9 @@ import (
 )
 
 // BlockGapsFinder searches for all possible chains that blocks may form,
-// a head, tail and length are found for each chain.
+// a head, tail and length are found for each chain. It doesn't track all blocks
+// along a chain, but keeps only head and tail, therefore not all forks and cycles
+// can be spotted, also the current algorithm doesn't find duplications.
 type BlockGapsFinder struct {
 	// chains is a map of "PrevHash" to a chain, in other words a previous hash
 	// that the chain's head points to (chain.head.PrevHash).

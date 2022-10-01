@@ -1,3 +1,3 @@
-module github.com/f-dg/chain_debugger
+module github.com/f-dg/chaintoolkit
 
 go 1.19
