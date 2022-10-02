@@ -2,6 +2,7 @@ package chaintoolkit
 
 import (
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 )
@@ -91,6 +92,8 @@ func TestBlockGapsAppend(t *testing.T) {
 			third.Length, third.Head.BlockHash, third.Tail.BlockHash,
 		)
 	}
+
+	res.Print(os.Stdout)
 }
 
 func TestBlockGapsAppendErrors(t *testing.T) {

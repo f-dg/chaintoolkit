@@ -3,19 +3,23 @@ package chaintoolkit
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 )
 
 // BlockGapsFinder searches for all possible chains that blocks may form,
 // a head, tail and length are found for each chain. It doesn't track all blocks
 // along a chain, but keeps only head and tail, therefore not all forks and cycles
-// can be spotted, also the current algorithm doesn't find duplications.
+// can be spotted, also the current algorithm doesn't find duplicates.
 type BlockGapsFinder struct {
 	// chains is a map of "PrevHash" to a chain, in other words a previous hash
 	// that the chain's head points to (chain.head.PrevHash).
 	chains    map[string]*Chain
 	cntBlocks int64
+
+	took time.Duration
 }
 
 // Chain represents an info of a single chain.
@@ -32,6 +36,9 @@ type Block struct {
 
 	// PrevHash is a hash that points to the previouse block.
 	PrevHash string
+
+	// Time is time of a block.
+	Time time.Time
 }
 
 // BlogGapsResult is a result returned after inspecting blocks,
@@ -51,18 +58,10 @@ func (bg *BlockGapsFinder) Append(blks ...*Block) error {
 	if len(blks) == 0 {
 		return nil
 	}
+
 	bg.cntBlocks += int64(len(blks))
-
-	/*
-		fmt.Println("\n\n>>> append")
-		fmt.Println("---- input")
-		for _, b := range blks {
-			fmt.Printf("prev=%s hash=%s\n", b.PrevHash, b.BlockHash)
-		}
-
-		fmt.Println("\tstage 1")
-		bg.Result().Print(os.Stdout)
-	*/
+	start := time.Now()
+	defer func() { bg.took += time.Since(start) }()
 
 	for i := 0; i < len(blks); i++ {
 		b := blks[i]
@@ -115,11 +114,6 @@ func (bg *BlockGapsFinder) Append(blks ...*Block) error {
 		}
 	}
 
-	/*
-		fmt.Println("\tstage 2")
-		bg.Result().Print(os.Stdout)
-	*/
-
 	// try merge chains
 	for prevHash, ch := range bg.chains {
 		for {
@@ -143,11 +137,6 @@ func (bg *BlockGapsFinder) Append(blks ...*Block) error {
 		}
 	}
 
-	/*
-		fmt.Println("\tstage 3")
-		bg.Result().Print(os.Stdout)
-	*/
-
 	return nil
 }
 
@@ -162,21 +151,50 @@ func (bgr *BlockGapsResult) Chains() map[string]*Chain {
 
 // Print prints a debug info to w.
 func (bgr *BlockGapsResult) Print(w io.Writer) {
-	s := fmt.Sprintf("Counted\t%d\tblocks\t", bgr.bg.cntBlocks)
 
 	tw := tabwriter.NewWriter(w, 1, 1, 1, ' ', 0)
-	fmt.Fprintln(tw, s)
-	fmt.Fprintf(tw, "Found\t%d\tchains\t\n", len(bgr.bg.chains))
-	fmt.Fprintln(tw, strings.Repeat("-", len(s)-1))
+	var longest *Chain
+	timeLayout := "2006-01-02 15:04:05"
+	fmt.Fprintln(
+		tw, "chain\tblocks\thead\thead time\ttail\ttail time\t",
+	)
+
+	chains := []*Chain{}
+	for _, c := range bgr.bg.chains {
+		chains = append(chains, c)
+	}
+
+	sort.Slice(chains, func(i, j int) bool {
+		return chains[i].Head.Time.Before(chains[j].Head.Time)
+	})
 
 	i := 0
-	for _, c := range bgr.bg.chains {
+	for _, c := range chains {
+		if longest == nil || longest.Length < c.Length {
+			longest = c
+		}
+
 		fmt.Fprintf(
-			tw, "chain %d:\tlen %d\thead %s\ttail %s\t\n",
-			i, c.Length, c.Head.BlockHash, c.Tail.BlockHash,
+			tw, "%d\t%d\t%s\t%s\t%s\t%s\t\n",
+			i, c.Length, c.Head.BlockHash, c.Head.Time.Format(timeLayout),
+			c.Tail.BlockHash, c.Tail.Time.Format(timeLayout),
 		)
 		i++
 	}
+
+	s := fmt.Sprintf(
+		"Longest:\t%d blocks\thead %s\ttail %s\t",
+		longest.Length, longest.Head.BlockHash, longest.Tail.BlockHash,
+	)
+	fmt.Fprintln(tw, strings.Repeat("-", len(s)))
+	fmt.Fprintln(tw, s)
+	fmt.Fprintf(
+		tw, " \t \thead time %s\ttail time %s\t\n",
+		longest.Head.Time.Format(timeLayout), longest.Tail.Time.Format(timeLayout),
+	)
+	fmt.Fprintf(tw, "Total:\t%d blocks\t\n", bgr.bg.cntBlocks)
+	fmt.Fprintf(tw, "Found:\t%d chains\t\n", len(bgr.bg.chains))
+	fmt.Fprintf(tw, "Took:\t%s\t\t\n", bgr.bg.took)
 
 	tw.Flush()
 }
