@@ -149,6 +149,15 @@ func (bgr *BlockGapsResult) Chains() map[string]*Chain {
 	return bgr.bg.chains
 }
 
+// ChainsAsArray returns all found chains, it converts a map of chains to an array.
+func (bgr *BlockGapsResult) ChainsAsArray() []*Chain {
+	ret := []*Chain{}
+	for _, c := range bgr.bg.chains {
+		ret = append(ret, c)
+	}
+	return ret
+}
+
 // Print prints a debug info to w.
 func (bgr *BlockGapsResult) Print(w io.Writer) {
 
